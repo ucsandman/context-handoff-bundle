@@ -199,7 +199,7 @@ def resolve_store(mode: str = 'auto', cwd: Path | None = None) -> BundleStore:
     mode:
         'repo-local': force repo-local store
         'global': force global store
-        'auto': prefer repo-local if in a git repo, else global
+        'auto': default to global (cross-terminal is the primary use case)
     """
     if mode == 'global':
         return get_global_store()
@@ -208,9 +208,8 @@ def resolve_store(mode: str = 'auto', cwd: Path | None = None) -> BundleStore:
         if store is None:
             raise RuntimeError('Not in a git repository; cannot use repo-local store')
         return store
-    # auto
-    store = get_repo_local_store(cwd)
-    return store if store is not None else get_global_store()
+    # auto: default to global for cross-terminal portability
+    return get_global_store()
 
 
 def save_bundle(
