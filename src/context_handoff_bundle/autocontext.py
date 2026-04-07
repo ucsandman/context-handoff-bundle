@@ -193,31 +193,89 @@ def _summarize_branch_work(cwd: Path) -> str:
 
 
 def _detect_work_focus(cwd: Path) -> str:
-    """Detect what kind of work was happening from recent commits."""
+    """Detect what kind of work was happening from recent commits and file paths.
+
+    Combines commit messages with file-path analysis to produce specific
+    descriptions like "CLI commands and quality scoring" instead of generic
+    theme keywords like "add, update, fix".
+    """
+    # Get recent commit messages
     log = _git_output(
         ['git', 'log', '--max-count=8', '--format=%s', '--no-decorate'],
         cwd
     )
-    if not log:
+    # Get recently changed file paths
+    files_output = _git_output(
+        ['git', 'log', '--max-count=5', '--name-only', '--pretty=format:'],
+        cwd
+    )
+
+    if not log and not files_output:
         return ''
 
-    messages = log.splitlines()
-    # Look for patterns
-    keywords: dict[str, int] = {}
-    for msg in messages:
-        lower = msg.lower()
-        for kw in ['fix', 'add', 'update', 'refactor', 'test', 'docs', 'feat',
-                    'build', 'config', 'remove', 'clean', 'merge', 'wip']:
-            if kw in lower:
-                keywords[kw] = keywords.get(kw, 0) + 1
+    messages = log.splitlines() if log else []
 
-    if not keywords:
-        return f'Recent work: {"; ".join(messages[:3])}'
+    # Analyze file paths to detect code areas
+    areas: dict[str, int] = {}
+    if files_output:
+        for filepath in files_output.splitlines():
+            filepath = filepath.strip()
+            if not filepath:
+                continue
+            area = _classify_file_area(filepath)
+            if area:
+                areas[area] = areas.get(area, 0) + 1
 
-    # Top themes
-    sorted_kw = sorted(keywords.items(), key=lambda x: x[1], reverse=True)
-    themes = [k for k, _ in sorted_kw[:3]]
-    return f'Recent work themes: {", ".join(themes)}. Last commits: {"; ".join(messages[:3])}'
+    # Build description
+    parts: list[str] = []
+
+    # Top code areas from file paths (the specific part)
+    if areas:
+        sorted_areas = sorted(areas.items(), key=lambda x: x[1], reverse=True)
+        top_areas = [a for a, _ in sorted_areas[:4]]
+        parts.append(f'Active areas: {", ".join(top_areas)}')
+
+    # Recent commit summaries (the narrative part)
+    if messages:
+        parts.append(f'Last commits: {"; ".join(messages[:3])}')
+
+    return '. '.join(parts) if parts else ''
+
+
+def _classify_file_area(filepath: str) -> str:
+    """Classify a file path into a meaningful code area name."""
+    parts = filepath.replace('\\', '/').split('/')
+    filename = parts[-1] if parts else filepath
+
+    # Strip common prefixes
+    meaningful = [p for p in parts if p not in ('src', 'lib', 'app', 'pkg', 'internal', 'cmd')]
+
+    # Use the module/package name if available
+    if len(meaningful) >= 2:
+        # e.g., "context_handoff_bundle/quality.py" -> "quality"
+        module = meaningful[-1].rsplit('.', 1)[0]  # Remove extension
+        parent = meaningful[-2]
+        # Skip __init__, __main__ etc
+        if module.startswith('__'):
+            return parent
+        return module
+
+    # For top-level files, use the file purpose
+    name = filename.rsplit('.', 1)[0]
+    purpose_map = {
+        'test': 'tests', 'spec': 'tests', 'conftest': 'test config',
+        'readme': 'docs', 'changelog': 'docs', 'contributing': 'docs',
+        'dockerfile': 'docker', 'docker-compose': 'docker',
+        'makefile': 'build', 'setup': 'build config', 'pyproject': 'build config',
+        'package': 'package config', 'tsconfig': 'typescript config',
+        'gitignore': 'git config', 'eslintrc': 'lint config',
+    }
+    lower_name = name.lower()
+    for key, label in purpose_map.items():
+        if key in lower_name:
+            return label
+
+    return name if name else ''
 
 
 def _summarize_recent_diff(cwd: Path) -> str:

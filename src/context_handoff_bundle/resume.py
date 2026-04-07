@@ -18,13 +18,15 @@ def compose_resume(
     bundle_dir: Path,
     mode: str = 'fast',
     freshness: dict | None = None,
+    drift: dict | None = None,
 ) -> str:
     """Compose a Claude-ready resume context from a bundle.
 
     Args:
         bundle_dir: Path to the bundle directory
         mode: 'fast' for compact orientation, 'deep' for detailed context
-        freshness: Optional freshness check result to embed drift info
+        freshness: Optional freshness check result (legacy, used if no drift)
+        drift: Optional drift analysis result from drift.analyze_drift()
 
     Returns:
         A formatted string ready to inject into Claude Code context
@@ -51,22 +53,43 @@ def compose_resume(
     if exec_summary:
         parts.append(f'- **Summary:** {exec_summary}')
 
-    # Include trustworthy findings as state
+    # Include trustworthy findings as state, with drift-aware confidence
     findings = summary.get('findings', [])
+    at_risk_ids = set()
+    if drift and drift.get('findings_at_risk'):
+        at_risk_ids = {f['id'] for f in drift['findings_at_risk']}
+
     if findings:
         parts.append('')
         parts.append('**What was established:**')
         limit = 8 if mode == 'deep' else 5
         for f in findings[:limit]:
             text = f.get('summary', f.get('title', ''))
+            fid = f.get('id', '')
             confidence = f.get('confidence', 'medium')
-            if confidence == 'high':
+            if fid in at_risk_ids:
+                parts.append(f'- ~~{text}~~ **[STALE - evidence changed]**')
+            elif confidence == 'high':
                 parts.append(f'- {text}')
             else:
                 parts.append(f'- {text} *(confidence: {confidence})*')
 
+    # ── CONFIDENCE SUMMARY ──
+    confidence_parts = _compute_section_confidence(summary, findings, at_risk_ids, drift)
+    if confidence_parts:
+        parts.append('')
+        parts.append('**Section confidence:**')
+        for label, level in confidence_parts:
+            parts.append(f'- {label}: **{level}**')
+
     # ── DRIFT: what changed since save ──
-    if freshness and freshness.get('warnings'):
+    if drift and drift.get('has_drift'):
+        from .drift import format_drift_report
+        drift_text = format_drift_report(drift)
+        if drift_text:
+            parts.append('')
+            parts.append(drift_text)
+    elif freshness and freshness.get('warnings'):
         parts.append('')
         parts.append('## Drift')
         parts.append('**The repo has changed since this handoff was saved:**')
@@ -150,6 +173,60 @@ def compose_resume(
     parts.append('Do not re-research from scratch. Verify incrementally.')
 
     return '\n'.join(parts)
+
+
+def _compute_section_confidence(
+    summary: dict,
+    findings: list[dict],
+    at_risk_ids: set,
+    drift: dict | None,
+) -> list[tuple[str, str]]:
+    """Compute per-section confidence ratings."""
+    sections: list[tuple[str, str]] = []
+
+    # Findings confidence
+    if findings:
+        stale_count = sum(1 for f in findings if f.get('id', '') in at_risk_ids)
+        high_count = sum(1 for f in findings if f.get('confidence') == 'high')
+        total = len(findings)
+        if stale_count > total / 2:
+            sections.append(('Findings', 'STALE'))
+        elif stale_count > 0:
+            sections.append(('Findings', f'mixed ({stale_count}/{total} at risk)'))
+        elif high_count > total / 2:
+            sections.append(('Findings', 'strong'))
+        else:
+            sections.append(('Findings', 'medium'))
+
+    # Evidence confidence
+    if drift and drift.get('evidence_status'):
+        ok = sum(1 for e in drift['evidence_status'] if e['status'] == 'ok')
+        total = len(drift['evidence_status'])
+        if total > 0:
+            if ok == total:
+                sections.append(('Evidence', 'strong'))
+            elif ok > total / 2:
+                sections.append(('Evidence', f'partial ({total - ok}/{total} affected)'))
+            else:
+                sections.append(('Evidence', 'WEAK'))
+
+    # Recommendations confidence
+    recs = summary.get('recommendations', [])
+    if recs:
+        if drift and drift.get('recommendations_at_risk'):
+            sections.append(('Recommendations', 'STALE'))
+        elif drift and drift.get('has_drift') and drift.get('commit_count', 0) > 5:
+            sections.append(('Recommendations', 'uncertain'))
+        else:
+            sections.append(('Recommendations', 'medium'))
+
+    # Overall drift
+    if drift and drift.get('severity') == 'high':
+        sections.append(('Overall', 'LOW - significant drift'))
+    elif drift and drift.get('severity') == 'medium':
+        sections.append(('Overall', 'MEDIUM - some drift'))
+
+    return sections
 
 
 def _load_json(path: Path, default):

@@ -628,9 +628,13 @@ def cmd_load(args: argparse.Namespace) -> int:
     # Freshness check
     freshness = check_freshness(entry, cwd)
 
+    # Deep drift analysis
+    from .drift import analyze_drift
+    drift = analyze_drift(entry, cwd)
+
     # Compose resume
     mode = 'deep' if args.deep else 'fast'
-    resume_text = compose_resume(bundle_path, mode=mode, freshness=freshness)
+    resume_text = compose_resume(bundle_path, mode=mode, freshness=freshness, drift=drift)
 
     output: dict = {
         'loaded': True,
@@ -639,6 +643,8 @@ def cmd_load(args: argparse.Namespace) -> int:
         'path': entry['path'],
         'created_at': entry.get('created_at', ''),
         'fresh': freshness['fresh'],
+        'drift_severity': drift['severity'],
+        'drift_summary': drift['summary'],
         'freshness_warnings': freshness['warnings'],
     }
 
@@ -885,6 +891,42 @@ def cmd_prune(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_diff(args: argparse.Namespace) -> int:
+    from .storage import get_repo_local_store, get_global_store
+    from .compare import compare_bundles, format_comparison
+
+    cwd = Path.cwd()
+
+    def resolve_one(query: str) -> Path | None:
+        for store_fn in [lambda: get_repo_local_store(cwd), get_global_store]:
+            store = store_fn()
+            if store is None:
+                continue
+            resolved = store.resolve(query)
+            if resolved and not isinstance(resolved, list):
+                return Path(resolved['path'])
+        return None
+
+    path_a = resolve_one(args.bundle_a)
+    path_b = resolve_one(args.bundle_b)
+
+    if not path_a:
+        print(json.dumps({'error': f'Bundle not found: {args.bundle_a}'}))
+        return 1
+    if not path_b:
+        print(json.dumps({'error': f'Bundle not found: {args.bundle_b}'}))
+        return 1
+
+    comp = compare_bundles(path_a, path_b)
+
+    if args.json_output:
+        print(json.dumps(comp, indent=2))
+    else:
+        print(format_comparison(comp))
+
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='context-handoff-bundle')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -960,6 +1002,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_prune.add_argument('--repo-only', action='store_true', help='only prune repo-local store')
     p_prune.add_argument('--global-only', action='store_true', help='only prune global store')
     p_prune.set_defaults(func=cmd_prune)
+
+    # --- diff ---
+    p_diff = sub.add_parser('diff', help='compare two bundles and show what changed')
+    p_diff.add_argument('bundle_a', help='older bundle (id, slug, or "latest")')
+    p_diff.add_argument('bundle_b', help='newer bundle (id, slug, or "latest")')
+    p_diff.add_argument('--json', dest='json_output', action='store_true', help='output JSON')
+    p_diff.set_defaults(func=cmd_diff)
 
     return parser
 
