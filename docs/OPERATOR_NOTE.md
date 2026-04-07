@@ -1,50 +1,101 @@
-# Operator Note: How to Use Context Handoff Bundle
+# Operator Guide
 
-## The short version
+## 30-second version
 
-1. Install: `pip install -e .` from this repo
-2. Do meaningful work in Claude Code
-3. Run `/handoff-save` (or `context-handoff-bundle save --title "your title"`)
-4. Later, in a new terminal: `/handoff-load` (or `context-handoff-bundle load`)
-5. Continue from where you left off
+```bash
+pip install -e .                                           # install
+context-handoff-bundle save --title "what you worked on"   # save
+# ... close terminal, come back later ...
+context-handoff-bundle load                                # resume
+```
 
-## What actually happens
+That's it. The tool handles context gathering, quality scoring, drift detection, and resume formatting.
 
-**Save** generates a structured bundle with findings, entities, relations, evidence anchors, and open questions. It scores the bundle quality across 8 dimensions, stores it in a registry-backed location, and captures git state (branch, commit, dirty status).
+## How save works
 
-**Load** resolves the best matching bundle, checks if it's still fresh relative to the current repo state, and emits a compact resume context. Freshness warnings tell you if the branch changed, commits advanced, or evidence files are missing.
+`save` does five things:
+1. **Gathers context** from your repo (git history, active files, tech stack, WIP state, evidence anchors)
+2. **Generates** a structured bundle (findings, entities, evidence, open questions, narrative markdown)
+3. **Scores quality** across 9 weighted dimensions (evidence and honesty weighted highest)
+4. **Stores** the bundle in a registry-backed location with git state metadata
+5. **Reports** the result with quality rating and any warnings
 
-## Storage locations
+For richer bundles, add `--notes session-notes.md` with structured findings.
 
-- **Repo-local (default):** `.context-handoffs/` in the git repo root
-- **Global:** `~/.context-handoff-bundles/`
+## How load works
 
-Each location has its own `index.json` registry. Both are searched on load.
+`load` does four things:
+1. **Resolves** the right bundle (by id, slug, or latest for current repo)
+2. **Analyzes drift** -- file-level diff against current repo, evidence anchor status, findings at risk
+3. **Composes** an operational resume (State / Drift / Confidence / Open First / Must Reverify / Next Moves)
+4. **Warns** about anything stale, missing, or changed
 
-## Quality levels
+## What drift detection tells you
 
-- **strong** (>=0.65): Good enough to trust for continuation
-- **acceptable** (>=0.4): Usable but may have gaps
-- **weak** (<0.4): Saved but flagged - don't rely on it without enrichment
+This is the key feature. On load, you see:
+- Which files changed since save
+- Which evidence anchors still exist, changed, or are gone
+- Which findings may be stale (with the specific reason)
+- Which recommendations may be unsafe
+- Severity: NONE / LOW / MEDIUM / HIGH
+- Per-section confidence: Findings strong, Evidence partial, Recommendations STALE
+
+## Storage
+
+| Location | Path | Purpose |
+|----------|------|---------|
+| Repo-local | `.context-handoffs/` | Per-project bundles (default) |
+| Global | `~/.context-handoff-bundles/` | Cross-project bundles |
+
+Both use `index.json` registries. `load` searches both. Override with `--global` or `--repo-local`.
+
+## Useful commands
+
+```bash
+# Save
+context-handoff-bundle save --title "description"
+context-handoff-bundle save --title "description" --notes notes.md
+context-handoff-bundle save --update                    # refresh latest bundle
+context-handoff-bundle save --tag auth --tag refactor   # with tags
+
+# Load
+context-handoff-bundle load                # latest for this repo
+context-handoff-bundle load auth-refactor  # by slug
+context-handoff-bundle load --deep         # full context
+
+# Inspect
+context-handoff-bundle list
+context-handoff-bundle show latest
+context-handoff-bundle diff <bundle-a> <bundle-b>
+
+# Manage
+context-handoff-bundle prune --keep 1
+context-handoff-bundle delete <bundle-id>
+```
+
+## Slash commands
+
+Available in Claude Code when `.claude/commands/handoff-*.md` is present (repo-local or `~/.claude/commands/`):
+
+- `/handoff-save` -- calls `context-handoff-bundle save`
+- `/handoff-load` -- calls `context-handoff-bundle load`
+- `/handoff-list` -- calls `context-handoff-bundle list`
+- `/handoff-show` -- calls `context-handoff-bundle show`
+
+## Quality ratings
+
+| Rating | Score | Meaning |
+|--------|-------|---------|
+| strong | >= 0.6 | Trust for continuation |
+| acceptable | >= 0.35 | Usable, may have gaps |
+| weak | < 0.35 | Saved but flagged |
+
+Quality weights trustworthiness (evidence, honesty, specificity) over prettiness (formatting, entity count).
 
 ## Tips
 
-- Use `--notes <file>` to save from structured session notes for richer bundles
-- Use `--tag` to organize bundles by project or topic
-- Use `load --deep` for detailed context when resuming complex architecture work
-- Use `show latest` to inspect what's in a bundle before loading
-- Use `list` to see all available bundles across stores
-
-## What makes a good handoff
-
-The best handoffs come from sessions with structured notes that include:
-- Clear findings with evidence
-- Explicit open questions (not hidden uncertainty)
-- Specific repo/file references
-- Honest confidence assessments
-
-A handoff saved from `--notes` with real evidence anchors will score much higher than a bare `save` with no context.
-
-## Slash commands in other projects
-
-Copy `.claude/commands/handoff-*.md` to any project's `.claude/commands/` directory. The CLI must be installed (`pip install -e /path/to/context-handoff-bundle`).
+- `save --update` avoids accumulating duplicates when iterating on the same work
+- `prune --keep 1` cleans up test artifacts
+- `diff` between two bundles shows what evolved (resolved questions, new findings)
+- `load --deep` shows full evidence and assumptions -- useful for complex architecture work
+- Save from `--notes` for the strongest bundles, bare `save` for quick checkpoints
