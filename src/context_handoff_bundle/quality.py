@@ -1,20 +1,28 @@
-"""Quality scoring for context handoff bundles."""
+"""Quality scoring for context handoff bundles.
+
+Scores trustworthiness and decision usefulness, not prettiness.
+Weighted to reward: evidence, honesty, specificity, actionable resume.
+De-weighted: entity/relation richness (structure-for-structure's-sake).
+"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
 
-DIMENSIONS = [
-    'completeness',
-    'evidence_coverage',
-    'entity_richness',
-    'relation_richness',
-    'open_question_honesty',
-    'resume_usability',
-    'markdown_clarity',
-    'repo_specificity',
-]
+# Weights: higher = more important to the overall score.
+# Trustworthiness dimensions get 2-3x weight of structural ones.
+DIMENSION_WEIGHTS = {
+    'evidence_coverage':     3.0,   # Can findings be traced to sources?
+    'open_question_honesty': 2.5,   # Does the bundle admit what it doesn't know?
+    'repo_specificity':      2.5,   # Is this about a real project, not generic filler?
+    'findings_substance':    2.0,   # Are findings specific and actionable?
+    'resume_usability':      2.0,   # Does the resume actually help the next session?
+    'completeness':          1.0,   # Are the files present?
+    'markdown_clarity':      1.0,   # Is the narrative readable?
+    'entity_richness':       0.5,   # Nice to have, not critical
+    'relation_richness':     0.3,   # Nice to have, not critical
+}
 
 
 def score_bundle(bundle_dir: Path) -> dict:
@@ -33,23 +41,23 @@ def score_bundle(bundle_dir: Path) -> dict:
     warnings: list[str] = []
     dim_scores: dict[str, float] = {}
 
-    # --- Completeness: are all required files present with real content? ---
+    # --- Completeness ---
     required = [
         'CONTEXT_HANDOFF.md', 'summary.json', 'entities.json',
         'relations.json', 'evidence_index.json', 'open_questions.json',
         'resume_prompt.txt', 'bundle_metadata.json',
     ]
-    present = sum(1 for f in required if (bundle_dir / f).exists())
     non_empty = 0
     for f in required:
         p = bundle_dir / f
         if p.exists() and len(p.read_text(encoding='utf-8').strip()) > 20:
             non_empty += 1
     dim_scores['completeness'] = non_empty / len(required)
-    if present < len(required):
-        warnings.append(f'Missing {len(required) - present} required file(s)')
+    missing = len(required) - sum(1 for f in required if (bundle_dir / f).exists())
+    if missing:
+        warnings.append(f'Missing {missing} required file(s)')
 
-    # --- Evidence coverage ---
+    # --- Evidence coverage (high weight) ---
     evidence = _load_json_list(bundle_dir / 'evidence_index.json')
     ev_count = len(evidence)
     if ev_count == 0:
@@ -63,32 +71,23 @@ def score_bundle(bundle_dir: Path) -> dict:
     else:
         dim_scores['evidence_coverage'] = min(1.0, ev_count / 10)
 
-    # --- Entity richness ---
-    entities = _load_json_list(bundle_dir / 'entities.json')
-    ent_count = len(entities)
-    if ent_count == 0:
-        dim_scores['entity_richness'] = 0.0
-        warnings.append('No entities extracted')
-    elif ent_count < 3:
-        dim_scores['entity_richness'] = 0.3
-        warnings.append('Very few entities for a meaningful handoff')
-    elif ent_count < 8:
-        dim_scores['entity_richness'] = 0.6
+    # --- Findings substance (new: are findings specific?) ---
+    summary = _load_json_dict(bundle_dir / 'summary.json')
+    findings = summary.get('findings', [])
+    if not findings:
+        dim_scores['findings_substance'] = 0.0
+        warnings.append('No findings - bundle has nothing to hand off')
     else:
-        dim_scores['entity_richness'] = min(1.0, ent_count / 15)
+        # Score based on count and average length (longer = more specific)
+        avg_len = sum(len(f.get('summary', f.get('title', ''))) for f in findings) / len(findings)
+        count_score = min(1.0, len(findings) / 6)
+        length_score = min(1.0, avg_len / 80)
+        # Penalize if all findings are generic/short
+        generic_count = sum(1 for f in findings if _is_generic(f.get('summary', '')))
+        generic_penalty = generic_count / len(findings) * 0.4
+        dim_scores['findings_substance'] = max(0.0, (count_score * 0.4 + length_score * 0.6) - generic_penalty)
 
-    # --- Relation richness ---
-    relations = _load_json_list(bundle_dir / 'relations.json')
-    rel_count = len(relations)
-    if rel_count == 0:
-        dim_scores['relation_richness'] = 0.0
-        warnings.append('No relations extracted')
-    elif rel_count < 3:
-        dim_scores['relation_richness'] = 0.3
-    else:
-        dim_scores['relation_richness'] = min(1.0, rel_count / 10)
-
-    # --- Open question honesty ---
+    # --- Open question honesty (high weight) ---
     questions = _load_json_list(bundle_dir / 'open_questions.json')
     q_count = len(questions)
     if q_count == 0:
@@ -126,7 +125,6 @@ def score_bundle(bundle_dir: Path) -> dict:
             warnings.append('Handoff markdown is too thin')
         elif heading_count < 3:
             dim_scores['markdown_clarity'] = 0.4
-            warnings.append('Handoff markdown has few sections')
         elif md_len < 800:
             dim_scores['markdown_clarity'] = 0.6
         else:
@@ -134,31 +132,52 @@ def score_bundle(bundle_dir: Path) -> dict:
     else:
         dim_scores['markdown_clarity'] = 0.0
 
-    # --- Repo specificity ---
-    summary = _load_json_dict(bundle_dir / 'summary.json')
+    # --- Repo specificity (high weight) ---
     scope = summary.get('scope', {})
     repos = scope.get('repos', [])
     inputs = scope.get('inputs', [])
     specificity = 0.0
     if repos:
-        specificity += min(0.5, len(repos) * 0.15)
+        specificity += min(0.4, len(repos) * 0.15)
     if inputs:
-        specificity += min(0.3, len(inputs) * 0.1)
-    if summary.get('purpose') and len(summary.get('purpose', '')) > 20:
+        specificity += min(0.2, len(inputs) * 0.1)
+    purpose = summary.get('purpose', '')
+    if purpose and len(purpose) > 20 and 'untitled' not in purpose.lower():
         specificity += 0.2
+    # Bonus for specific findings (not "needs refinement")
+    specific_findings = sum(1 for f in findings if not _is_generic(f.get('summary', '')))
+    if specific_findings:
+        specificity += min(0.2, specific_findings * 0.04)
     dim_scores['repo_specificity'] = min(1.0, specificity)
     if specificity < 0.3:
         warnings.append('Bundle is too generic - lacks repo-specific detail')
 
-    # --- Overall ---
-    if dim_scores:
-        avg = sum(dim_scores.values()) / len(dim_scores)
+    # --- Entity richness (low weight) ---
+    entities = _load_json_list(bundle_dir / 'entities.json')
+    ent_count = len(entities)
+    if ent_count == 0:
+        dim_scores['entity_richness'] = 0.0
+    elif ent_count < 3:
+        dim_scores['entity_richness'] = 0.4
     else:
-        avg = 0.0
+        dim_scores['entity_richness'] = min(1.0, ent_count / 10)
 
-    if avg >= 0.65:
+    # --- Relation richness (low weight) ---
+    relations = _load_json_list(bundle_dir / 'relations.json')
+    rel_count = len(relations)
+    if rel_count == 0:
+        dim_scores['relation_richness'] = 0.0
+    else:
+        dim_scores['relation_richness'] = min(1.0, rel_count / 8)
+
+    # --- Weighted overall ---
+    total_weight = sum(DIMENSION_WEIGHTS.get(k, 1.0) for k in dim_scores)
+    weighted_sum = sum(v * DIMENSION_WEIGHTS.get(k, 1.0) for k, v in dim_scores.items())
+    avg = weighted_sum / total_weight if total_weight > 0 else 0.0
+
+    if avg >= 0.6:
         overall = 'strong'
-    elif avg >= 0.4:
+    elif avg >= 0.35:
         overall = 'acceptable'
     else:
         overall = 'weak'
@@ -168,8 +187,18 @@ def score_bundle(bundle_dir: Path) -> dict:
         'score': round(avg, 3),
         'dimensions': {k: round(v, 3) for k, v in dim_scores.items()},
         'warnings': warnings,
-        'pass': avg >= 0.35,
+        'pass': avg >= 0.3,
     }
+
+
+def _is_generic(text: str) -> bool:
+    """Check if a finding is generic filler rather than specific insight."""
+    generic_markers = [
+        'needs refinement', 'unknown', 'starter handoff',
+        'needs direct validation', 'needs refinement from source',
+    ]
+    lower = text.lower()
+    return any(marker in lower for marker in generic_markers) or len(text) < 15
 
 
 def _load_json_list(path: Path) -> list:

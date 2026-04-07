@@ -1,12 +1,17 @@
-"""Auto-context gathering for rich handoff generation without manual notes."""
+"""Auto-context gathering for rich handoff generation without manual notes.
+
+Task-aware: captures what was being worked on, what changed, what broke,
+what remains unresolved, and which files matter first -- not just repo orientation.
+"""
 from __future__ import annotations
 
+import glob
 import subprocess
 from pathlib import Path
 
 
 def gather_repo_context(cwd: Path | None = None) -> dict:
-    """Gather rich context from the current repo automatically.
+    """Gather rich, task-aware context from the current repo automatically.
 
     Returns a parsed dict compatible with the notes format:
         scope, projects, findings, opportunities, open_questions, evidence_anchors
@@ -33,74 +38,81 @@ def gather_repo_context(cwd: Path | None = None) -> dict:
 def _build_scope(cwd: Path) -> str:
     """Build a scope description from repo state."""
     parts = [f'Context handoff from {cwd.name}']
-
     branch = _git_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], cwd)
     if branch:
         parts.append(f'on branch {branch}')
-
     return ' '.join(parts)
 
 
 def _detect_projects(cwd: Path) -> list[str]:
     """Detect project names from repo structure."""
     projects = [cwd.name]
-
-    # Check for monorepo patterns
     for subdir in ['packages', 'projects', 'apps', 'services', 'modules']:
         d = cwd / subdir
         if d.is_dir():
             for child in sorted(d.iterdir()):
                 if child.is_dir() and not child.name.startswith('.'):
                     projects.append(child.name)
-
     return projects
 
 
 def _gather_findings(cwd: Path) -> list[str]:
-    """Extract findings from repo inspection."""
+    """Extract task-aware findings from repo inspection."""
     findings: list[str] = []
 
-    # 1. Project description from README
+    # 1. What the project is
     readme_desc = _extract_readme_purpose(cwd)
     if readme_desc:
         findings.append(readme_desc)
 
-    # 2. CLAUDE.md project description
-    claude_desc = _extract_claude_md_purpose(cwd)
-    if claude_desc:
-        findings.append(claude_desc)
+    # 2. What branch work looks like
+    branch_summary = _summarize_branch_work(cwd)
+    if branch_summary:
+        findings.append(branch_summary)
 
-    # 3. Recent git activity summary
-    recent_summary = _summarize_recent_commits(cwd)
-    if recent_summary:
-        findings.append(recent_summary)
+    # 3. What was being worked on (recent commit themes)
+    work_focus = _detect_work_focus(cwd)
+    if work_focus:
+        findings.append(work_focus)
 
-    # 4. Key technology stack
+    # 4. What changed recently (diff stats)
+    diff_summary = _summarize_recent_diff(cwd)
+    if diff_summary:
+        findings.append(diff_summary)
+
+    # 5. What's in progress right now
+    wip = _detect_work_in_progress(cwd)
+    if wip:
+        findings.append(wip)
+
+    # 6. Technology stack
     stack = _detect_tech_stack(cwd)
     if stack:
         findings.append(f'Technology stack: {", ".join(stack)}')
 
-    # 5. Project structure summary
+    # 7. Project structure
     structure = _summarize_structure(cwd)
     if structure:
         findings.append(structure)
 
-    # 6. Recent file changes
-    recent_files = _recent_modified_files(cwd)
-    if recent_files:
-        findings.append(f'Recently modified files: {", ".join(recent_files[:8])}')
-
-    # 7. Dirty state
-    dirty_files = _get_dirty_files(cwd)
-    if dirty_files:
-        findings.append(f'Uncommitted changes in {len(dirty_files)} file(s): {", ".join(dirty_files[:5])}')
+    # 8. What files were touched most recently
+    hot_files = _get_hot_files(cwd)
+    if hot_files:
+        findings.append(f'Hot files (most recently changed): {", ".join(hot_files[:6])}')
 
     return findings
 
 
 def _gather_evidence_anchors(cwd: Path) -> list[str]:
-    """Gather key files as evidence anchors."""
+    """Gather key files as evidence anchors, prioritizing recently changed files."""
     anchors: list[str] = []
+
+    # Recently changed files first -- these are most relevant
+    hot = _get_hot_files(cwd)
+    for f in hot[:5]:
+        p = cwd / f
+        if p.exists():
+            anchors.append(str(p))
 
     # Key documentation files
     for name in ['README.md', 'CLAUDE.md', 'docs/SPEC.md', 'docs/ROADMAP.md',
@@ -114,18 +126,16 @@ def _gather_evidence_anchors(cwd: Path) -> list[str]:
     for pattern in ['src/index.*', 'src/main.*', 'src/app.*', 'src/lib.*',
                     'src/*/cli.py', 'src/*/main.py', 'src/*/__init__.py',
                     'main.*', 'index.*', 'app.*']:
-        import glob
         matches = glob.glob(str(cwd / pattern))
         for m in matches[:3]:
             anchors.append(m)
 
-    # Config files
-    for name in ['.env.example', 'tsconfig.json', 'jest.config.*',
-                 'pytest.ini', 'setup.cfg', 'Makefile', 'Dockerfile']:
-        import glob as g2
-        matches = g2.glob(str(cwd / name))
-        for m in matches[:2]:
-            anchors.append(m)
+    # Dirty files -- these are actively being worked on
+    dirty = _get_dirty_files(cwd)
+    for f in dirty[:5]:
+        p = cwd / f
+        if p.exists():
+            anchors.append(str(p))
 
     return list(dict.fromkeys(anchors))  # Deduplicate preserving order
 
@@ -134,27 +144,172 @@ def _gather_open_questions(cwd: Path, findings: list[str]) -> list[str]:
     """Generate honest open questions based on what we don't know."""
     questions: list[str] = []
 
-    # Always ask about in-progress work
     dirty = _get_dirty_files(cwd)
     if dirty:
-        questions.append('What is the current state of the uncommitted changes?')
+        questions.append(f'There are {len(dirty)} uncommitted file(s) -- what is their state? Ready to commit or still in progress?')
 
-    # Check for TODO/FIXME in recent files
+    # Detect potential issues
+    failing_tests = _detect_test_failures(cwd)
+    if failing_tests:
+        questions.append(f'Tests may be failing: {failing_tests}')
+
     todo_count = _count_todos(cwd)
     if todo_count > 0:
-        questions.append(f'There are {todo_count} TODO/FIXME comments in the codebase - which are priorities?')
+        questions.append(f'{todo_count} TODO/FIXME comments in the codebase -- which are relevant to the current work?')
 
-    # Default questions
-    questions.append('What was the most recent work focus before this handoff?')
-    questions.append('Are there any blocking issues or decisions pending?')
+    # Branch-specific questions
+    branch = _git_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], cwd)
+    if branch and branch not in ('main', 'master'):
+        questions.append(f'Branch "{branch}" -- is it ready to merge, or still in progress?')
+
+    questions.append('What was the immediate next step before this handoff?')
 
     return questions
 
 
-# --- Helper functions ---
+# ── Task-awareness helpers ──
+
+def _summarize_branch_work(cwd: Path) -> str:
+    """Summarize what this branch has done vs main."""
+    branch = _git_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], cwd)
+    if not branch or branch in ('main', 'master'):
+        return ''
+
+    # Count commits ahead of main
+    for base in ['main', 'master']:
+        count = _git_output(['git', 'rev-list', '--count', f'{base}..HEAD'], cwd)
+        if count and count != '0':
+            # Get the commit subjects
+            subjects = _git_output(
+                ['git', 'log', f'{base}..HEAD', '--oneline', '--no-decorate', '--max-count=5'],
+                cwd
+            )
+            if subjects:
+                lines = subjects.splitlines()
+                summary = '; '.join(lines[:4])
+                extra = f'; and {len(lines) - 4} more' if len(lines) > 4 else ''
+                return f'Branch "{branch}" is {count} commit(s) ahead of {base}: {summary}{extra}'
+    return ''
+
+
+def _detect_work_focus(cwd: Path) -> str:
+    """Detect what kind of work was happening from recent commits."""
+    log = _git_output(
+        ['git', 'log', '--max-count=8', '--format=%s', '--no-decorate'],
+        cwd
+    )
+    if not log:
+        return ''
+
+    messages = log.splitlines()
+    # Look for patterns
+    keywords: dict[str, int] = {}
+    for msg in messages:
+        lower = msg.lower()
+        for kw in ['fix', 'add', 'update', 'refactor', 'test', 'docs', 'feat',
+                    'build', 'config', 'remove', 'clean', 'merge', 'wip']:
+            if kw in lower:
+                keywords[kw] = keywords.get(kw, 0) + 1
+
+    if not keywords:
+        return f'Recent work: {"; ".join(messages[:3])}'
+
+    # Top themes
+    sorted_kw = sorted(keywords.items(), key=lambda x: x[1], reverse=True)
+    themes = [k for k, _ in sorted_kw[:3]]
+    return f'Recent work themes: {", ".join(themes)}. Last commits: {"; ".join(messages[:3])}'
+
+
+def _summarize_recent_diff(cwd: Path) -> str:
+    """Summarize what changed in recent commits by file count and areas."""
+    stat = _git_output(
+        ['git', 'diff', '--stat', '--stat-count=10', 'HEAD~3..HEAD'],
+        cwd
+    )
+    if not stat:
+        # Try with fewer commits
+        stat = _git_output(['git', 'diff', '--stat', '--stat-count=10', 'HEAD~1..HEAD'], cwd)
+    if not stat:
+        return ''
+
+    lines = stat.strip().splitlines()
+    if lines:
+        # Last line is the summary (e.g., "10 files changed, 200 insertions(+), 50 deletions(-)")
+        summary_line = lines[-1].strip()
+        if 'changed' in summary_line:
+            return f'Recent changes: {summary_line}'
+    return ''
+
+
+def _detect_work_in_progress(cwd: Path) -> str:
+    """Detect uncommitted work and characterize it."""
+    dirty = _get_dirty_files(cwd)
+    if not dirty:
+        return ''
+
+    # Categorize dirty files
+    staged = _git_output(['git', 'diff', '--name-only', '--cached'], cwd)
+    unstaged = _git_output(['git', 'diff', '--name-only'], cwd)
+    untracked = _git_output(['git', 'ls-files', '--others', '--exclude-standard'], cwd)
+
+    parts = []
+    if staged:
+        staged_count = len(staged.splitlines())
+        parts.append(f'{staged_count} staged')
+    if unstaged:
+        unstaged_count = len(unstaged.splitlines())
+        parts.append(f'{unstaged_count} modified')
+    if untracked:
+        untracked_count = len(untracked.splitlines())
+        parts.append(f'{untracked_count} untracked')
+
+    file_list = ', '.join(dirty[:5])
+    extra = f' and {len(dirty) - 5} more' if len(dirty) > 5 else ''
+    return f'Work in progress ({", ".join(parts)}): {file_list}{extra}'
+
+
+def _detect_test_failures(cwd: Path) -> str:
+    """Quick check for obvious test failure indicators."""
+    # Look for common test result files
+    for pattern in ['.pytest_cache/v/cache/lastfailed', 'test-results.xml']:
+        p = cwd / pattern
+        if p.exists():
+            try:
+                content = p.read_text(encoding='utf-8')
+                if content.strip() and content.strip() != '{}':
+                    return 'pytest lastfailed cache is non-empty -- tests may have been failing'
+            except Exception:
+                pass
+    return ''
+
+
+def _get_hot_files(cwd: Path) -> list[str]:
+    """Get the most actively changed files across recent commits + dirty state."""
+    files: list[str] = []
+
+    # Files changed in last 5 commits
+    output = _git_output(
+        ['git', 'log', '--max-count=5', '--name-only', '--pretty=format:'],
+        cwd
+    )
+    if output:
+        for f in output.splitlines():
+            f = f.strip()
+            if f and f not in files:
+                files.append(f)
+
+    # Dirty files
+    dirty = _get_dirty_files(cwd)
+    for f in dirty:
+        if f not in files:
+            files.insert(0, f)  # Dirty files are hottest
+
+    return files[:15]
+
+
+# ── Base helpers ──
 
 def _git_output(cmd: list[str], cwd: Path) -> str:
-    """Run a git command and return stripped stdout, or empty string on failure."""
     try:
         return subprocess.check_output(
             cmd, cwd=str(cwd), stderr=subprocess.DEVNULL, text=True
@@ -164,14 +319,12 @@ def _git_output(cmd: list[str], cwd: Path) -> str:
 
 
 def _extract_readme_purpose(cwd: Path) -> str:
-    """Extract the first meaningful paragraph from README.md."""
     readme = cwd / 'README.md'
     if not readme.exists():
         return ''
     try:
         text = readme.read_text(encoding='utf-8')
         lines = text.splitlines()
-        # Skip title line and blank lines, grab first real paragraph
         content_lines: list[str] = []
         past_title = False
         for line in lines:
@@ -186,66 +339,24 @@ def _extract_readme_purpose(cwd: Path) -> str:
                 break
         if content_lines:
             desc = ' '.join(content_lines)
-            if len(desc) > 200:
-                desc = desc[:197] + '...'
-            return f'README says: {desc}'
+            if len(desc) > 300:
+                desc = desc[:297] + '...'
+            return desc
     except Exception:
         pass
     return ''
 
 
-def _extract_claude_md_purpose(cwd: Path) -> str:
-    """Extract project description from CLAUDE.md if present."""
-    for name in ['CLAUDE.md', '.claude/CLAUDE.md']:
-        p = cwd / name
-        if p.exists():
-            try:
-                text = p.read_text(encoding='utf-8')
-                # Look for first meaningful line
-                for line in text.splitlines():
-                    stripped = line.strip()
-                    if stripped and not stripped.startswith('#') and len(stripped) > 20:
-                        desc = stripped[:200]
-                        return f'CLAUDE.md describes: {desc}'
-            except Exception:
-                pass
-    return ''
-
-
-def _summarize_recent_commits(cwd: Path, count: int = 10) -> str:
-    """Summarize recent git commits."""
-    log = _git_output(
-        ['git', 'log', f'--max-count={count}', '--oneline', '--no-decorate'],
-        cwd
-    )
-    if not log:
-        return ''
-    lines = log.splitlines()
-    if len(lines) <= 3:
-        commits_text = '; '.join(lines)
-        return f'Recent commits ({len(lines)}): {commits_text}'
-    # Summarize
-    return f'Recent commits ({len(lines)}): {"; ".join(lines[:5])}; and {len(lines) - 5} more'
-
-
 def _detect_tech_stack(cwd: Path) -> list[str]:
-    """Detect technology stack from project files."""
     stack: list[str] = []
     indicators = {
-        'package.json': 'Node.js',
-        'pyproject.toml': 'Python',
-        'Cargo.toml': 'Rust',
-        'go.mod': 'Go',
-        'pom.xml': 'Java/Maven',
-        'build.gradle': 'Java/Gradle',
-        'Gemfile': 'Ruby',
-        'composer.json': 'PHP',
-        'tsconfig.json': 'TypeScript',
-        'next.config.js': 'Next.js',
-        'next.config.ts': 'Next.js',
-        'vite.config.ts': 'Vite',
-        'Dockerfile': 'Docker',
-        'docker-compose.yml': 'Docker Compose',
+        'package.json': 'Node.js', 'pyproject.toml': 'Python',
+        'Cargo.toml': 'Rust', 'go.mod': 'Go',
+        'pom.xml': 'Java/Maven', 'build.gradle': 'Java/Gradle',
+        'Gemfile': 'Ruby', 'composer.json': 'PHP',
+        'tsconfig.json': 'TypeScript', 'next.config.js': 'Next.js',
+        'next.config.ts': 'Next.js', 'vite.config.ts': 'Vite',
+        'Dockerfile': 'Docker', 'docker-compose.yml': 'Docker Compose',
     }
     for filename, tech in indicators.items():
         if (cwd / filename).exists():
@@ -254,7 +365,6 @@ def _detect_tech_stack(cwd: Path) -> list[str]:
 
 
 def _summarize_structure(cwd: Path) -> str:
-    """Summarize the top-level directory structure."""
     dirs: list[str] = []
     for item in sorted(cwd.iterdir()):
         if item.is_dir() and not item.name.startswith('.'):
@@ -264,27 +374,7 @@ def _summarize_structure(cwd: Path) -> str:
     return f'Top-level directories: {", ".join(dirs[:12])}'
 
 
-def _recent_modified_files(cwd: Path, count: int = 10) -> list[str]:
-    """Get recently modified tracked files from git."""
-    output = _git_output(
-        ['git', 'log', '--max-count=3', '--name-only', '--pretty=format:'],
-        cwd
-    )
-    if not output:
-        return []
-    files = [f for f in output.splitlines() if f.strip()]
-    # Deduplicate preserving order
-    seen: set[str] = set()
-    result: list[str] = []
-    for f in files:
-        if f not in seen:
-            seen.add(f)
-            result.append(f)
-    return result[:count]
-
-
 def _get_dirty_files(cwd: Path) -> list[str]:
-    """Get list of uncommitted changed files."""
     output = _git_output(['git', 'status', '--porcelain', '--short'], cwd)
     if not output:
         return []
@@ -297,7 +387,6 @@ def _get_dirty_files(cwd: Path) -> list[str]:
 
 
 def _count_todos(cwd: Path) -> int:
-    """Count TODO/FIXME comments in tracked source files."""
     try:
         output = subprocess.check_output(
             ['git', 'grep', '-c', '-E', r'TODO|FIXME'],

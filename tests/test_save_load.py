@@ -113,7 +113,7 @@ class TestLoadCommand:
 
         result = run_cli('load', 'latest')
         assert result.returncode == 0, result.stderr
-        assert 'Context Handoff' in result.stdout
+        assert '# Resume:' in result.stdout
 
         # Clean up
         bundle_path = Path(save_data['path'])

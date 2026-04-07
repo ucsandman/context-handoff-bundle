@@ -630,7 +630,7 @@ def cmd_load(args: argparse.Namespace) -> int:
 
     # Compose resume
     mode = 'deep' if args.deep else 'fast'
-    resume_text = compose_resume(bundle_path, mode=mode)
+    resume_text = compose_resume(bundle_path, mode=mode, freshness=freshness)
 
     output: dict = {
         'loaded': True,
