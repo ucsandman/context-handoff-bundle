@@ -1,0 +1,13 @@
+[
+  {
+    "id": "project_example",
+    "type": "project",
+    "name": "Example Project",
+    "description": "",
+    "status": "active",
+    "confidence": "medium",
+    "tags": [],
+    "sources": [],
+    "notes": ""
+  }
+]

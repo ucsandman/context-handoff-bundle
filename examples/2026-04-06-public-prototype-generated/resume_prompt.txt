@@ -1,0 +1,3 @@
+Read CONTEXT_HANDOFF.md, summary.json, and evidence_index.json first.
+Continue from high-confidence findings provisionally.
+Re-verify all open questions and any consequential architectural claims against source materials.

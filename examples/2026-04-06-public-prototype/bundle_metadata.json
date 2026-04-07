@@ -1,0 +1,10 @@
+{
+  "bundle_version": "0.1.0",
+  "generated_at": "2026-04-06T20:55:45.346708+00:00",
+  "generator": {
+    "tool": "context-handoff-bundle",
+    "mode": "init"
+  },
+  "source_inputs": [],
+  "notes": ""
+}

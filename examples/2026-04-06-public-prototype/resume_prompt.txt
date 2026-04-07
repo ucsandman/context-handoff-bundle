@@ -1,0 +1,12 @@
+You are resuming work from a previously generated Context Handoff Bundle.
+
+Read first:
+- CONTEXT_HANDOFF.md
+- summary.json
+- evidence_index.json
+
+Then:
+- trust high-confidence conclusions provisionally
+- use entities.json and relations.json to understand structure
+- re-verify anything listed in open_questions.json before taking consequential action
+- avoid re-reading entire repos from scratch unless the bundle is clearly insufficient

@@ -1,0 +1,38 @@
+[
+  {
+    "path": "C:/Projects/DashClaw/README.md",
+    "role": "reference",
+    "used_for": [
+      "session finding support"
+    ],
+    "confidence": "medium",
+    "review_status": "referenced"
+  },
+  {
+    "path": "C:/Projects/DashClaw/PROJECT_DETAILS.md",
+    "role": "reference",
+    "used_for": [
+      "session finding support"
+    ],
+    "confidence": "medium",
+    "review_status": "referenced"
+  },
+  {
+    "path": "C:/Users/sandm/clawd/memory/projects/x402-agent-transactions.md",
+    "role": "reference",
+    "used_for": [
+      "session finding support"
+    ],
+    "confidence": "medium",
+    "review_status": "referenced"
+  },
+  {
+    "path": "C:/Users/sandm/clawd/docs/context-handoff-spec.md",
+    "role": "reference",
+    "used_for": [
+      "session finding support"
+    ],
+    "confidence": "medium",
+    "review_status": "referenced"
+  }
+]

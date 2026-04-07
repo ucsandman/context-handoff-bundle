@@ -1,0 +1,10 @@
+[
+  {
+    "source": "project_example",
+    "target": "project_other",
+    "relation": "candidate_for_integration_with",
+    "confidence": "medium",
+    "why": "",
+    "sources": []
+  }
+]

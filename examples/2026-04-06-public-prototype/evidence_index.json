@@ -1,0 +1,9 @@
+[
+  {
+    "path": "path/to/source",
+    "role": "primary_design_doc",
+    "used_for": [],
+    "confidence": "high",
+    "review_status": "reviewed"
+  }
+]

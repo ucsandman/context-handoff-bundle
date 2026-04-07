@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/context-handoff-bundle/open_questions.schema.json",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "question", "why_it_matters", "how_to_verify", "blocking"],
+    "properties": {
+      "id": { "type": "string" },
+      "question": { "type": "string" },
+      "why_it_matters": { "type": "string" },
+      "how_to_verify": { "type": "string" },
+      "blocking": { "type": "boolean" }
+    }
+  }
+}

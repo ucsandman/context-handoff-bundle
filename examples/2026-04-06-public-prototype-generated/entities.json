@@ -1,0 +1,87 @@
+[
+  {
+    "id": "project_dashclaw",
+    "type": "project",
+    "name": "DashClaw",
+    "description": "Project identified in the handoff input: DashClaw",
+    "status": "active",
+    "confidence": "medium",
+    "tags": [
+      "project"
+    ],
+    "sources": [
+      "C:/Projects/DashClaw/README.md",
+      "C:/Projects/DashClaw/PROJECT_DETAILS.md",
+      "C:/Users/sandm/clawd/memory/projects/x402-agent-transactions.md"
+    ],
+    "notes": ""
+  },
+  {
+    "id": "project_practical-systems",
+    "type": "project",
+    "name": "Practical Systems",
+    "description": "Project identified in the handoff input: Practical Systems",
+    "status": "active",
+    "confidence": "medium",
+    "tags": [
+      "project"
+    ],
+    "sources": [
+      "C:/Projects/DashClaw/README.md",
+      "C:/Projects/DashClaw/PROJECT_DETAILS.md",
+      "C:/Users/sandm/clawd/memory/projects/x402-agent-transactions.md"
+    ],
+    "notes": ""
+  },
+  {
+    "id": "project_treasuryclaw",
+    "type": "project",
+    "name": "TreasuryClaw",
+    "description": "Project identified in the handoff input: TreasuryClaw",
+    "status": "active",
+    "confidence": "medium",
+    "tags": [
+      "project"
+    ],
+    "sources": [
+      "C:/Projects/DashClaw/README.md",
+      "C:/Projects/DashClaw/PROJECT_DETAILS.md",
+      "C:/Users/sandm/clawd/memory/projects/x402-agent-transactions.md"
+    ],
+    "notes": ""
+  },
+  {
+    "id": "project_budget-aware-research-agent",
+    "type": "project",
+    "name": "Budget-Aware Research Agent",
+    "description": "Project identified in the handoff input: Budget-Aware Research Agent",
+    "status": "active",
+    "confidence": "medium",
+    "tags": [
+      "project"
+    ],
+    "sources": [
+      "C:/Projects/DashClaw/README.md",
+      "C:/Projects/DashClaw/PROJECT_DETAILS.md",
+      "C:/Users/sandm/clawd/memory/projects/x402-agent-transactions.md"
+    ],
+    "notes": ""
+  },
+  {
+    "id": "project_openclaw-pro",
+    "type": "project",
+    "name": "OpenClaw-Pro",
+    "description": "Project identified in the handoff input: OpenClaw-Pro",
+    "status": "active",
+    "confidence": "medium",
+    "tags": [
+      "project"
+    ],
+    "sources": [
+      "C:/Projects/DashClaw/README.md",
+      "C:/Projects/DashClaw/PROJECT_DETAILS.md",
+      "C:/Users/sandm/clawd/memory/projects/x402-agent-transactions.md"
+    ],
+    "notes": ""
+  }
+]

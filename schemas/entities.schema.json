@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/context-handoff-bundle/entities.schema.json",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "type", "name", "description", "status", "confidence", "tags", "sources", "notes"],
+    "properties": {
+      "id": { "type": "string" },
+      "type": { "type": "string" },
+      "name": { "type": "string" },
+      "description": { "type": "string" },
+      "status": { "type": "string" },
+      "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+      "tags": { "type": "array", "items": { "type": "string" } },
+      "sources": { "type": "array", "items": { "type": "string" } },
+      "notes": { "type": "string" }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "Q1",
+    "question": "Which projects should remain branded separately versus folded inward?",
+    "why_it_matters": "Captured from session notes as unresolved uncertainty.",
+    "how_to_verify": "Review source materials and validate against current repo state.",
+    "blocking": false
+  },
+  {
+    "id": "Q2",
+    "question": "What is the right boundary between product, consulting layer, and internal operating system?",
+    "why_it_matters": "Captured from session notes as unresolved uncertainty.",
+    "how_to_verify": "Review source materials and validate against current repo state.",
+    "blocking": false
+  }
+]

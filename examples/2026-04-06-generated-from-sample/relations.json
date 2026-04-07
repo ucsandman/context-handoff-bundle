@@ -1,0 +1,13 @@
+[
+  {
+    "source": "project_dashclaw",
+    "target": "project_practical-systems",
+    "relation": "candidate_for_integration_with",
+    "confidence": "medium",
+    "why": "DashClaw and Practical Systems overlap in client-facing automation, governance, and operational surfaces.",
+    "sources": [
+      "C:/Projects/DashClaw/README.md",
+      "C:/Projects/DashClaw/PROJECT_DETAILS.md"
+    ]
+  }
+]

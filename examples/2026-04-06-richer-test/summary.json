@@ -1,0 +1,24 @@
+{
+  "title": "",
+  "date": "YYYY-MM-DD",
+  "generated_by": {
+    "tool": "context-handoff-bundle",
+    "model": ""
+  },
+  "purpose": "",
+  "scope": {
+    "repos": [],
+    "folders": [],
+    "inputs": [],
+    "excluded": [],
+    "artifacts_created": []
+  },
+  "executive_summary": "",
+  "findings": [],
+  "recommendations": [],
+  "resume_instructions": {
+    "read_first": [],
+    "assumptions_to_continue_from": [],
+    "must_reverify": []
+  }
+}

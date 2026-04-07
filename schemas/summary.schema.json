@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/context-handoff-bundle/summary.schema.json",
+  "type": "object",
+  "required": ["title", "date", "generated_by", "purpose", "scope", "executive_summary", "findings", "recommendations", "resume_instructions"],
+  "properties": {
+    "title": { "type": "string" },
+    "date": { "type": "string" },
+    "generated_by": {
+      "type": "object",
+      "required": ["tool", "model"],
+      "properties": {
+        "tool": { "type": "string" },
+        "model": { "type": "string" }
+      }
+    },
+    "purpose": { "type": "string" },
+    "scope": {
+      "type": "object",
+      "required": ["repos", "folders", "inputs", "excluded", "artifacts_created"],
+      "properties": {
+        "repos": { "type": "array", "items": { "type": "string" } },
+        "folders": { "type": "array", "items": { "type": "string" } },
+        "inputs": { "type": "array", "items": { "type": "string" } },
+        "excluded": { "type": "array", "items": { "type": "string" } },
+        "artifacts_created": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "executive_summary": { "type": "string" },
+    "findings": { "type": "array", "items": { "type": "object" } },
+    "recommendations": { "type": "array", "items": { "type": "object" } },
+    "resume_instructions": {
+      "type": "object",
+      "required": ["read_first", "assumptions_to_continue_from", "must_reverify"],
+      "properties": {
+        "read_first": { "type": "array", "items": { "type": "string" } },
+        "assumptions_to_continue_from": { "type": "array", "items": { "type": "string" } },
+        "must_reverify": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

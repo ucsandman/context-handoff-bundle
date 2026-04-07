@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/context-handoff-bundle/evidence_index.schema.json",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["path", "role", "used_for", "confidence", "review_status"],
+    "properties": {
+      "path": { "type": "string" },
+      "role": { "type": "string" },
+      "used_for": { "type": "array", "items": { "type": "string" } },
+      "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+      "review_status": { "type": "string", "enum": ["reviewed", "referenced", "generated"] }
+    }
+  }
+}

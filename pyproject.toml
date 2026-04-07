@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "context-handoff-bundle"
+version = "0.1.0"
+description = "Durable handoff bundles for AI session understanding"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Wes Sander + MoltFire" }]
+license = { text = "MIT" }
+dependencies = []
+
+[project.scripts]
+context-handoff-bundle = "context_handoff_bundle.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
