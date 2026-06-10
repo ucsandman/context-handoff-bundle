@@ -53,16 +53,16 @@ SECTION_KEYS = {
 }
 
 
-def project_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+def package_dir() -> Path:
+    return Path(__file__).resolve().parent
 
 
 def templates_dir() -> Path:
-    return project_root() / "templates"
+    return package_dir() / "templates"
 
 
 def schemas_dir() -> Path:
-    return project_root() / "schemas"
+    return package_dir() / "schemas"
 
 
 def slugify(text: str) -> str:
@@ -568,12 +568,6 @@ def cmd_save(args: argparse.Namespace) -> int:
     write_json(bundle_dir / "relations.json", relations)
     write_json(bundle_dir / "evidence_index.json", evidence_index)
     write_json(bundle_dir / "open_questions.json", open_questions)
-    write_json(
-        bundle_dir / "bundle_metadata.json",
-        build_bundle_metadata(
-            mode="save", source_inputs=source_inputs, notes=f"Saved handoff: {title}"
-        ),
-    )
     (bundle_dir / "CONTEXT_HANDOFF.md").write_text(
         render_markdown(title, parsed), encoding="utf-8"
     )
@@ -585,6 +579,21 @@ def cmd_save(args: argparse.Namespace) -> int:
         f"Do not re-research established findings unless evidence is stale.\n",
         encoding="utf-8",
     )
+
+    # Token accounting: what this bundle costs vs re-deriving from source
+    from .tokens import bundle_tokens, estimate_reread_tokens
+
+    reread = estimate_reread_tokens(cwd, parsed["evidence_anchors"])
+    metadata = build_bundle_metadata(
+        mode="save", source_inputs=source_inputs, notes=f"Saved handoff: {title}"
+    )
+    metadata["token_estimates"] = {
+        "bundle_tokens": bundle_tokens(bundle_dir),
+        "source_reread_tokens": reread["total"],
+        "source_files_counted": reread["files_counted"],
+        "heuristic": "chars/4",
+    }
+    write_json(bundle_dir / "bundle_metadata.json", metadata)
 
     # Score the bundle
     quality = score_bundle(bundle_dir)
@@ -617,6 +626,7 @@ def cmd_save(args: argparse.Namespace) -> int:
         "quality": quality["overall"],
         "score": quality["score"],
         "warnings": quality["warnings"],
+        "token_estimates": metadata["token_estimates"],
     }
     print(json.dumps(result, indent=2))
     return 0
@@ -709,6 +719,26 @@ def cmd_load(args: argparse.Namespace) -> int:
         bundle_path, mode=mode, freshness=freshness, drift=drift
     )
 
+    # Token accounting: resume cost vs re-deriving from source files
+    from .tokens import estimate_tokens, estimate_reread_tokens, format_tokens
+
+    resume_tokens = estimate_tokens(resume_text)
+    evidence_paths: list[str] = []
+    try:
+        evidence = json.loads(
+            (bundle_path / "evidence_index.json").read_text(encoding="utf-8")
+        )
+        evidence_paths = [e.get("path", "") for e in evidence if isinstance(e, dict)]
+    except Exception:
+        pass
+    reread = estimate_reread_tokens(cwd, evidence_paths)
+    token_estimates = {
+        "resume_tokens": resume_tokens,
+        "source_reread_tokens": reread["total"],
+        "source_files_counted": reread["files_counted"],
+        "heuristic": "chars/4",
+    }
+
     output: dict = {
         "loaded": True,
         "bundle_id": entry["id"],
@@ -719,6 +749,7 @@ def cmd_load(args: argparse.Namespace) -> int:
         "drift_severity": drift["severity"],
         "drift_summary": drift["summary"],
         "freshness_warnings": freshness["warnings"],
+        "token_estimates": token_estimates,
     }
 
     if args.json_output:
@@ -731,6 +762,16 @@ def cmd_load(args: argparse.Namespace) -> int:
                 print(f"  WARNING:{w}")
             print("---\n")
         print(resume_text)
+        print()
+        line = f"[tokens] resume: {format_tokens(resume_tokens)}"
+        if reread["files_counted"] > 0 and reread["total"] > resume_tokens:
+            saved_pct = round(100 * (1 - resume_tokens / reread["total"]))
+            line += (
+                f" | re-deriving from source ({reread['files_counted']} files):"
+                f" {format_tokens(reread['total'])}"
+                f" | saved: ~{saved_pct}% (chars/4 estimate)"
+            )
+        print(line)
 
     return 0
 

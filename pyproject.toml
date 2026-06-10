@@ -4,13 +4,39 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "context-handoff-bundle"
-version = "0.1.0"
-description = "Durable handoff bundles for AI session understanding"
+version = "0.2.0"
+description = "Durable context handoffs for AI coding agents -- resume any session for a fraction of the tokens"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Wes Sander + MoltFire" }]
 license = { text = "MIT" }
 dependencies = []
+keywords = [
+    "ai-agents",
+    "claude-code",
+    "context-management",
+    "token-efficiency",
+    "llm",
+    "developer-tools",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+]
+
+[project.urls]
+Homepage = "https://github.com/ucsandman/context-handoff-bundle"
+Repository = "https://github.com/ucsandman/context-handoff-bundle"
+Issues = "https://github.com/ucsandman/context-handoff-bundle/issues"
 
 [project.scripts]
 context-handoff-bundle = "context_handoff_bundle.cli:main"
@@ -20,3 +46,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+context_handoff_bundle = ["templates/*", "schemas/*"]

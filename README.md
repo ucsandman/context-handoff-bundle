@@ -1,8 +1,14 @@
 # Context Handoff Bundle
 
-**Stop re-explaining your codebase every time you open a new AI terminal.**
+[![CI](https://github.com/ucsandman/context-handoff-bundle/actions/workflows/ci.yml/badge.svg)](https://github.com/ucsandman/context-handoff-bundle/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/ucsandman/context-handoff-bundle)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Context Handoff Bundle captures what your AI coding agent learned during a session and packages it into a structured, evidence-backed bundle that any future session can load in seconds -- with honest drift detection that tells you what's still safe to trust.
+**Resume yesterday's AI coding session for ~3% of the tokens.**
+
+Every new session, your AI coding agent re-orients from zero: re-reads the README, re-walks the source tree, re-derives everything it already knew yesterday. With frontier models like Anthropic's Fable 5 and Opus, that cold start burns tens of thousands of input tokens -- every single session -- before any real work happens.
+
+Context Handoff Bundle captures what the agent learned during a session into a structured, evidence-backed bundle. The next session loads it as a compact resume -- typically a few hundred tokens instead of a multi-thousand-token re-read -- with honest drift detection that tells you what's still safe to trust. Plain files on disk. No cloud, no API keys, zero dependencies.
 
 ```
 Terminal 1 (end of day):
@@ -32,6 +38,8 @@ Severity: LOW -- 2 commits, 3 files touched since save.
 1. Complete token rotation implementation
 2. Add integration tests for session handling
 3. Update API docs for new auth flow
+
+[tokens] resume: ~640 | re-deriving from source (6 files): ~23.0k | saved: ~97% (chars/4 estimate)
 ```
 
 No archaeology. No re-reading. No "let me look at the codebase..."
@@ -54,10 +62,38 @@ Context Handoff Bundle fixes this with three ideas:
 
 ---
 
+## The Token Math
+
+Cold-starting an agent session means re-reading source files at full input price. A handoff resume replaces that with a few hundred tokens of distilled context.
+
+Measured on this repo (every `load` prints your own numbers):
+
+```
+[tokens] resume: ~640 | re-deriving from source (6 files): ~23.0k | saved: ~97% (chars/4 estimate)
+```
+
+| | Cold start | Handoff resume |
+|---|---|---|
+| What the agent reads | Evidence files + README + docs, rediscovered by trial and error | One distilled, drift-checked resume |
+| Input tokens (this repo) | ~23,000 | ~640 |
+| Multiplied by | every session, every terminal, every teammate | once per save |
+
+Two sessions a day on a mid-size repo easily means 50k-400k tokens/day spent on pure re-orientation. With current frontier-model pricing, that's real money for zero new understanding -- the agent is paying to relearn what it already knew.
+
+**How the estimate works, honestly:** tokens are estimated as `chars / 4` (the standard heuristic), the re-read cost counts the bundle's evidence-anchored files plus standard orientation files (README, CLAUDE.md, etc.) at their current size. It's an order-of-magnitude measurement, not a billing statement -- and it's printed on every load so you can judge it against your own repo.
+
+---
+
 ## Install
 
 ```bash
-pip install context-handoff-bundle
+pip install git+https://github.com/ucsandman/context-handoff-bundle.git
+```
+
+or with [pipx](https://pipx.pypa.io/) for an isolated CLI install:
+
+```bash
+pipx install git+https://github.com/ucsandman/context-handoff-bundle.git
 ```
 
 Development:
@@ -66,9 +102,10 @@ Development:
 git clone https://github.com/ucsandman/context-handoff-bundle.git
 cd context-handoff-bundle
 pip install -e .
+pytest
 ```
 
-Requires Python 3.10+. No external dependencies for core functionality.
+Requires Python 3.10+. Zero runtime dependencies (`jsonschema` is optional, for schema validation in `validate`).
 
 ---
 
@@ -95,7 +132,13 @@ Automatically gathers from your repo:
   "bundle_id": "20260406-143022-api-migration",
   "quality": "strong",
   "score": 0.84,
-  "warnings": []
+  "warnings": [],
+  "token_estimates": {
+    "bundle_tokens": 3696,
+    "source_reread_tokens": 23043,
+    "source_files_counted": 6,
+    "heuristic": "chars/4"
+  }
 }
 ```
 
@@ -255,6 +298,8 @@ Global:      ~/.context-handoff-bundles/index.json   (cross-repo)
 
 Bundles are stored in registry-backed directories with `index.json` for fast lookup by ID, slug, title, repo, or tags. `save` defaults to the global store for cross-terminal portability. `load` searches both stores. Use `--repo-local` to force project-scoped storage.
 
+Set `CONTEXT_HANDOFF_HOME` to relocate the global store (the test suite uses this so it never touches your real bundles).
+
 Ambiguous queries surface options instead of guessing.
 
 ---
@@ -344,6 +389,9 @@ src/context_handoff_bundle/
   freshness.py     Age and branch checks
   resume.py        Operational resume composition
   compare.py       Bundle-to-bundle comparison
+  tokens.py        Token estimation (resume cost vs source re-read)
+  templates/       Bundle file templates
+  schemas/         JSON schemas for validation
 ```
 
 ---

@@ -9,6 +9,10 @@ dist/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.offlocal/
+.repowise/
+.claude/settings.local.json
 .coverage
 htmlcov/
 .DS_Store
