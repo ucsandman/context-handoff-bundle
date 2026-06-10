@@ -14,7 +14,7 @@ Different files serve different purposes in a handoff:
 - Evidence anchors tying findings to source files (evidence_index.json)
 - Honest uncertainty preservation (open_questions.json)
 - Fast resume bootstrap (resume_prompt.txt)
-- Git state and quality metadata (bundle_metadata.json)
+- Git state, quality, and token-estimate metadata (bundle_metadata.json)
 
 ## Bundle directory pattern
 
@@ -30,6 +30,8 @@ Example: `20260406-143022-auth-refactor/`
 | Global | `~/.context-handoff-bundles/` | Cross-project |
 
 Each store has `index.json` for fast lookup by id, slug, title, repo, or tags.
+
+`save` defaults to the global store (cross-terminal portability is the primary use case). The `CONTEXT_HANDOFF_HOME` environment variable relocates the global store; the test suite uses it so `pytest` never touches the real store.
 
 ## Required files
 
@@ -69,6 +71,13 @@ On load, the system must answer:
 - What is the overall drift severity?
 
 Stale bundles are never silently trusted.
+
+## Token accounting contract
+
+Token costs are measured, not asserted:
+- `save` records `token_estimates` in `bundle_metadata.json`: bundle size, estimated source re-read cost, files counted, and the heuristic used (`chars/4`).
+- `load` prints a `[tokens]` line comparing the resume's size against re-deriving the same context from the evidence-anchored files plus standard orientation files (README, CLAUDE.md, etc.).
+- Estimates are order-of-magnitude honest, always labeled with the heuristic, and never presented as billing-accurate.
 
 ## Resume contract
 

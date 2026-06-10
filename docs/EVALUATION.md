@@ -42,6 +42,10 @@ Does the resume give you:
 Can you skip the orientation phase?
 Are the "do not re-research" signals clear?
 
+### 7. Token efficiency
+Does the `[tokens]` line on load show the resume is materially cheaper than re-deriving from source?
+A resume that approaches the cost of just re-reading the files isn't earning its keep.
+
 ## Quality dimensions (weighted)
 
 | Dimension | Weight | Good | Bad |
@@ -74,3 +78,4 @@ A bundle passes if:
 3. Findings are specific enough to trust provisionally
 4. Uncertainties are honest enough to avoid false confidence
 5. The resume gives you a specific starting point, not a vague summary
+6. The resume costs a small fraction of the tokens that re-deriving the context would

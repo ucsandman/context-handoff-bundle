@@ -59,9 +59,20 @@
 - [x] Test failure detection
 - [x] Hot file ranking
 
+## Phase 12 - Token Accounting & Packaging (v0.2.0) [DONE]
+- [x] Token estimates on save (`token_estimates` in bundle_metadata.json)
+- [x] `[tokens]` savings line on load (resume cost vs source re-read)
+- [x] Templates/schemas packaged so `pip install` works outside a checkout
+- [x] `CONTEXT_HANDOFF_HOME` store override; test suite isolated from real store
+- [x] CI matrix (Ubuntu/Windows/macOS x Python 3.10-3.13), v0.2.0 release
+
 ---
 
 ## Future
+
+### Token Accounting Depth
+- [ ] Optional tokenizer-exact counts (Anthropic count-tokens API / tiktoken)
+- [ ] Cumulative savings tracking across loads (`stats` command)
 
 ### Deeper Auto-Context
 - [ ] Parse imports/exports for dependency-aware summaries

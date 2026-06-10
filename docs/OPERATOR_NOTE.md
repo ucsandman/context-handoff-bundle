@@ -3,7 +3,7 @@
 ## 30-second version
 
 ```bash
-pip install -e .                                           # install
+pip install git+https://github.com/ucsandman/context-handoff-bundle.git
 
 # Best results: save with notes authored from the session
 context-handoff-bundle save --title "what you worked on" --notes notes.md
@@ -30,11 +30,12 @@ For richer bundles, add `--notes session-notes.md` with structured findings.
 
 ## How load works
 
-`load` does four things:
+`load` does five things:
 1. **Resolves** the right bundle (by id, slug, or latest for current repo)
 2. **Analyzes drift** -- file-level diff against current repo, evidence anchor status, findings at risk
 3. **Composes** an operational resume (State / Drift / Confidence / Open First / Must Reverify / Next Moves)
 4. **Warns** about anything stale, missing, or changed
+5. **Reports token cost** -- a `[tokens]` line comparing the resume's size against re-deriving the context from source files
 
 ## What drift detection tells you
 
@@ -53,7 +54,7 @@ This is the key feature. On load, you see:
 | Global | `~/.context-handoff-bundles/` | Cross-terminal bundles (default) |
 | Repo-local | `.context-handoffs/` | Per-project bundles (`--repo-local`) |
 
-Both use `index.json` registries. `load` searches both. The global store is the default so bundles are accessible from any terminal regardless of which directory it opened in.
+Both use `index.json` registries. `load` searches both. The global store is the default so bundles are accessible from any terminal regardless of which directory it opened in. Set `CONTEXT_HANDOFF_HOME` to relocate the global store.
 
 ## Useful commands
 
@@ -113,3 +114,4 @@ Quality weights trustworthiness (evidence, honesty, specificity) over prettiness
 - `diff` between two bundles shows what evolved (resolved questions, new findings)
 - `load --deep` shows full evidence and assumptions -- useful for complex architecture work
 - Always use `--notes` in Claude Code (the `/handoff-save` command handles this automatically); bare `save` is useful only for quick CLI checkpoints where quality doesn't matter
+- The `[tokens]` line on load is your savings receipt -- if the resume isn't dramatically cheaper than the source re-read, save richer notes
