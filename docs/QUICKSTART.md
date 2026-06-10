@@ -1,26 +1,29 @@
 # Quickstart
 
-## 1. Create a starter bundle
+## Install
 
 ```bash
-context-handoff-bundle init --slug portfolio-synthesis --with-graph
+pip install git+https://github.com/ucsandman/context-handoff-bundle.git
 ```
 
-## 2. Generate a starter bundle from structured notes
+## 1. Save a handoff at the end of a session
+
+From your project directory:
 
 ```bash
-context-handoff-bundle generate examples/sample-notes.md --output examples --slug portfolio-synthesis --title "Portfolio Synthesis" --with-graph
+context-handoff-bundle save --title "Auth refactor progress"
 ```
 
-## 3. Validate a bundle
+This auto-gathers context from the repo (active areas, work in progress, recent history, evidence paths) and stores a scored bundle in the global store (`~/.context-handoff-bundles`).
+
+For a much richer bundle, save from structured session notes:
 
 ```bash
-context-handoff-bundle validate examples/2026-04-06-portfolio-synthesis
+context-handoff-bundle save --title "Auth refactor progress" --notes notes.md
 ```
 
-## Notes format
+Notes format -- a markdown file with bullet lists under these headings:
 
-For `generate`, the easiest input is a markdown file with sections like:
 - `## Scope`
 - `## Projects mentioned`
 - `## Findings`
@@ -28,9 +31,36 @@ For `generate`, the easiest input is a markdown file with sections like:
 - `## Open questions`
 - `## Evidence anchors`
 
-Use bullet lists under those headings.
+See [examples/sample-notes.md](../examples/sample-notes.md).
 
-## Current reality
+## 2. Resume in any new terminal
 
-This is an early prototype.
-It is useful for creating a starter handoff bundle, not for perfect semantic extraction.
+```bash
+context-handoff-bundle load              # latest for current repo
+context-handoff-bundle load auth-refactor # by slug
+```
+
+You get an operational resume (state, drift since save, what to open first, next moves) plus a token line showing what the resume cost versus re-deriving the context from source:
+
+```
+[tokens] resume: ~640 | re-deriving from source (6 files): ~23.0k | saved: ~97% (chars/4 estimate)
+```
+
+## 3. Manage bundles
+
+```bash
+context-handoff-bundle list               # all bundles with quality ratings
+context-handoff-bundle show latest        # inspect one
+context-handoff-bundle diff <old> <new>   # what changed between two bundles
+context-handoff-bundle prune --keep 1     # clean old duplicates
+```
+
+## Claude Code users
+
+Copy the slash commands once and use `/handoff-save` and `/handoff-load` in any session:
+
+```bash
+cp commands/handoff-*.md ~/.claude/commands/
+```
+
+See the [README](../README.md) for the full command reference, drift intelligence, and quality scoring details.
