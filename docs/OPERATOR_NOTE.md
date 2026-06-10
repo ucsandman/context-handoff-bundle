@@ -4,12 +4,18 @@
 
 ```bash
 pip install -e .                                           # install
-context-handoff-bundle save --title "what you worked on"   # save
+
+# Best results: save with notes authored from the session
+context-handoff-bundle save --title "what you worked on" --notes notes.md
+
+# Quick checkpoint (lower quality — blind repo scan only):
+context-handoff-bundle save --title "what you worked on"
+
 # ... close terminal, come back later ...
 context-handoff-bundle load                                # resume
 ```
 
-That's it. The tool handles context gathering, quality scoring, drift detection, and resume formatting.
+The tool handles context gathering, quality scoring, drift detection, and resume formatting. Bundles with `--notes` score significantly higher because they capture what only the session knows.
 
 ## How save works
 
@@ -44,10 +50,10 @@ This is the key feature. On load, you see:
 
 | Location | Path | Purpose |
 |----------|------|---------|
-| Repo-local | `.context-handoffs/` | Per-project bundles (default) |
-| Global | `~/.context-handoff-bundles/` | Cross-project bundles |
+| Global | `~/.context-handoff-bundles/` | Cross-terminal bundles (default) |
+| Repo-local | `.context-handoffs/` | Per-project bundles (`--repo-local`) |
 
-Both use `index.json` registries. `load` searches both. Override with `--global` or `--repo-local`.
+Both use `index.json` registries. `load` searches both. The global store is the default so bundles are accessible from any terminal regardless of which directory it opened in.
 
 ## Useful commands
 
@@ -75,12 +81,20 @@ context-handoff-bundle delete <bundle-id>
 
 ## Slash commands
 
-Available in Claude Code when `.claude/commands/handoff-*.md` is present (repo-local or `~/.claude/commands/`):
+Install globally (available in any Claude Code session):
 
-- `/handoff-save` -- calls `context-handoff-bundle save`
+```bash
+cp commands/handoff-*.md ~/.claude/commands/
+```
+
+Or copy to `.claude/commands/` in a specific project for project-local access.
+
+- `/handoff-save` -- authors a notes file from the live session, then calls `context-handoff-bundle save --notes <file>`
 - `/handoff-load` -- calls `context-handoff-bundle load`
 - `/handoff-list` -- calls `context-handoff-bundle list`
 - `/handoff-show` -- calls `context-handoff-bundle show`
+
+Note: `/handoff-save` requires Claude to author the notes — it cannot simply call `save` without `--notes` or the result will be a low-quality blind scan stub.
 
 ## Quality ratings
 
@@ -98,4 +112,4 @@ Quality weights trustworthiness (evidence, honesty, specificity) over prettiness
 - `prune --keep 1` cleans up test artifacts
 - `diff` between two bundles shows what evolved (resolved questions, new findings)
 - `load --deep` shows full evidence and assumptions -- useful for complex architecture work
-- Save from `--notes` for the strongest bundles, bare `save` for quick checkpoints
+- Always use `--notes` in Claude Code (the `/handoff-save` command handles this automatically); bare `save` is useful only for quick CLI checkpoints where quality doesn't matter

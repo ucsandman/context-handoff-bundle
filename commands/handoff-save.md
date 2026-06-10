@@ -1,6 +1,6 @@
 ---
 description: Save a durable context handoff bundle for the current project/session.
-argument-hint: [title-or-slug] [--global|--repo-local] [--tag TAG]
+argument-hint: "[title-or-slug] [--global|--repo-local] [--tag TAG]"
 ---
 
 Save a durable context handoff for the current working context.

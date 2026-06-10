@@ -222,13 +222,27 @@ Evidence, honesty, and specificity are weighted 3-5x more than structural comple
 Slash commands for [Claude Code](https://docs.anthropic.com/en/docs/claude-code):
 
 ```
-/handoff-save    Save a handoff for the current session
+/handoff-save    Author a notes file from the session, then save a handoff bundle
 /handoff-load    Load and resume from a saved handoff
 /handoff-list    List available bundles
 /handoff-show    Inspect a specific bundle
 ```
 
-**Setup:** Copy `.claude/commands/handoff-*.md` to your project's `.claude/commands/` or `~/.claude/commands/` for global access. All logic lives in Python, not prompt text.
+**Setup (global — available in any project):**
+
+```bash
+cp commands/handoff-*.md ~/.claude/commands/
+```
+
+**Setup (project-local — available only in this repo):**
+
+```bash
+cp commands/handoff-*.md .claude/commands/
+```
+
+All logic lives in the Python CLI, not in the prompt text. The command files are thin wrappers.
+
+**Important — `/handoff-save` requires `--notes`:** The CLI cannot see your conversation. When you run `/handoff-save`, Claude Code will author a structured notes file from the live session (findings, evidence, open questions) and pass it to the CLI via `--notes`. Saving without notes falls back to a blind directory scan and produces a low-quality stub. See the notes format in [Richer Bundles from Notes](#richer-bundles-from-notes) below.
 
 ---
 
@@ -239,7 +253,7 @@ Repo-local:  .context-handoffs/index.json     (per-repo, gitignored)
 Global:      ~/.context-handoff-bundles/index.json   (cross-repo)
 ```
 
-Bundles are stored in registry-backed directories with `index.json` for fast lookup by ID, slug, title, repo, or tags. `save` defaults to repo-local. `load` searches both stores.
+Bundles are stored in registry-backed directories with `index.json` for fast lookup by ID, slug, title, repo, or tags. `save` defaults to the global store for cross-terminal portability. `load` searches both stores. Use `--repo-local` to force project-scoped storage.
 
 Ambiguous queries surface options instead of guessing.
 
