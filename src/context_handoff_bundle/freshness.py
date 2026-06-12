@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,19 +10,16 @@ from pathlib import Path
 def _normalize_evidence_path(path_str: str) -> str | None:
     """Extract a checkable filesystem path from an evidence entry, or None.
 
-    Entries often look like "C:\\proj\\file.ts:40 (why it matters); extra notes",
-    "Memory: C:\\path\\file.md", "a.ps1 + a.log", or non-path anchors like
-    "DashClaw branch origin/platform-salvage". Only a clean single path should
-    be existence-checked; anything else returns None (skip, don't warn).
+    Entries often look like "file.py:59 — why it matters", "Memory:
+    C:\\path\\file.md", or non-path anchors like commands and git refs. Only
+    file anchors should be existence-checked; anything else returns None
+    (skip, don't warn). Delegates to the shared anchor parser so freshness
+    and drift agree on what an anchor means.
     """
-    s = path_str.split(" (")[0].split("; ")[0].split(" + ")[0].strip()
-    s = re.sub(
-        r"^[A-Za-z][A-Za-z ]*:\s+(?=[A-Za-z]:[\\/]|[\\/~])", "", s
-    )  # "Memory: C:\..." prefix
-    s = re.sub(r":\d+(?:-\d+)?$", "", s)  # trailing :line or :start-end
-    if " " in s or not re.search(r"[\\/]", s):
-        return None  # prose or a git ref, not a checkable path
-    return s
+    from .anchors import parse_anchor
+
+    anchor = parse_anchor(path_str.split(" + ")[0])
+    return anchor.path if anchor.kind == "file" else None
 
 
 def check_freshness(entry: dict, cwd: Path | None = None) -> dict:

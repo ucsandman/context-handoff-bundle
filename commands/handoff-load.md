@@ -22,11 +22,20 @@ If no query is provided, the tool loads the latest bundle for the current repo.
    - Executive summary
    - Key findings
    - Open questions
-   - Freshness warnings (if any)
+   - A drift section with per-anchor verification (if the repo moved since save)
    - Guidance on what not to re-research
 
 4. Present the resume context directly to orient yourself.
-5. If there are freshness warnings, surface them clearly before proceeding.
+5. Read the drift section by anchor status — the CLI has already done the checking, so don't
+   burn tool calls re-verifying what it verified:
+   - **verified** — content re-hashed and identical to save time. Trust the finding outright;
+     do NOT re-open the file to confirm.
+   - **ok** — file exists and untouched by the diff since save (older bundle without hashes).
+     Trust it; spot-check only before consequential decisions.
+   - **changed** — the anchored content changed. Re-read that anchor before relying on its
+     findings.
+   - **gone** — the file or commit no longer exists. Treat dependent findings as stale.
+   - **n/a** — not file-checkable (URL, command, prose). Judge by context.
 6. If the result says "ambiguous match", show the user the candidates and ask them to pick one.
 
 **Do not** manually read bundle files. The CLI handles resolution, freshness checks, and resume composition.

@@ -10,7 +10,13 @@
       "role": { "type": "string" },
       "used_for": { "type": "array", "items": { "type": "string" } },
       "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
-      "review_status": { "type": "string", "enum": ["reviewed", "referenced", "generated"] }
+      "review_status": { "type": "string", "enum": ["reviewed", "referenced", "generated"] },
+      "anchor_kind": { "type": "string", "enum": ["file", "url", "commit", "other"] },
+      "resolved_path": { "type": ["string", "null"] },
+      "line_start": { "type": ["integer", "null"] },
+      "line_end": { "type": ["integer", "null"] },
+      "content_hash": { "type": ["string", "null"] },
+      "verified_at_save": { "type": "boolean" }
     }
   }
 }

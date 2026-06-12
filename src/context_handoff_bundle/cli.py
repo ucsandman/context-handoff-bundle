@@ -162,17 +162,41 @@ def build_relations(
     return relations
 
 
-def build_evidence_index(evidence: list[str]) -> list[dict]:
-    return [
-        {
+def build_evidence_index(
+    evidence: list[str], repo_root: str | Path | None = None
+) -> list[dict]:
+    """Build the evidence index, verifying file anchors against the repo.
+
+    File anchors get a content hash of the referenced line range so a later
+    load can report VERIFIED/CHANGED/GONE with certainty instead of guessing
+    from git diffs (guessing is what produced false GONE alarms)."""
+    from .anchors import verify_anchor
+
+    index: list[dict] = []
+    for item in evidence:
+        entry = {
             "path": item,
             "role": "reference",
             "used_for": ["session finding support"],
             "confidence": "medium",
             "review_status": "referenced",
         }
-        for item in evidence
-    ]
+        entry.update(verify_anchor(item, repo_root=repo_root))
+        index.append(entry)
+    return index
+
+
+def summarize_anchor_verification(evidence_index: list[dict]) -> dict:
+    """Save-output summary so the agent can fix unresolved anchors at save
+    time instead of poisoning every future load."""
+    file_anchors = [e for e in evidence_index if e.get("anchor_kind") == "file"]
+    unresolved = [e["path"] for e in file_anchors if not e.get("verified_at_save")]
+    return {
+        "total": len(evidence_index),
+        "file_anchors": len(file_anchors),
+        "verified": len(file_anchors) - len(unresolved),
+        "unresolved": unresolved,
+    }
 
 
 def build_open_questions(questions: list[str]) -> list[dict]:
@@ -192,7 +216,7 @@ def build_open_questions(questions: list[str]) -> list[dict]:
 
 def build_bundle_metadata(mode: str, source_inputs: list[str], notes: str = "") -> dict:
     return {
-        "bundle_version": "0.1.0",
+        "bundle_version": "0.3.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "generator": {
             "tool": "context-handoff-bundle",
@@ -306,11 +330,14 @@ def cmd_generate(args: argparse.Namespace) -> int:
     slug = args.slug or slugify(title)
     bundle_dir = ensure_bundle_dir(args.output, slug)
 
+    from .storage import _git_info
+
+    repo_root = _git_info(Path.cwd()).get("repo_root")
     entities = build_entities(parsed["projects"], parsed["evidence_anchors"])
     relations = build_relations(
         parsed["projects"], parsed["findings"], parsed["evidence_anchors"]
     )
-    evidence_index = build_evidence_index(parsed["evidence_anchors"])
+    evidence_index = build_evidence_index(parsed["evidence_anchors"], repo_root)
     open_questions = build_open_questions(parsed["open_questions"])
 
     summary = {
@@ -510,12 +537,15 @@ def cmd_save(args: argparse.Namespace) -> int:
         parsed = gather_repo_context(cwd)
         source_inputs = [str(cwd)]
 
-    # Build bundle files
+    # Build bundle files (git_info early: anchor verification needs repo_root)
+    git_info = _git_info(cwd)
+    repo_root = git_info.get("repo_root") or str(cwd)
     entities = build_entities(parsed["projects"], parsed["evidence_anchors"])
     relations = build_relations(
         parsed["projects"], parsed["findings"], parsed["evidence_anchors"]
     )
-    evidence_index = build_evidence_index(parsed["evidence_anchors"])
+    evidence_index = build_evidence_index(parsed["evidence_anchors"], repo_root)
+    anchor_summary = summarize_anchor_verification(evidence_index)
     open_questions = build_open_questions(parsed["open_questions"])
 
     summary = {
@@ -599,14 +629,13 @@ def cmd_save(args: argparse.Namespace) -> int:
     quality = score_bundle(bundle_dir)
 
     # Persist to store
-    git_info = _git_info(cwd)
     entry = save_bundle(
         bundle_dir=bundle_dir,
         store=store,
         title=title,
         slug=slug,
         tags=tags,
-        repo_root=git_info.get("repo_root") or str(cwd),
+        repo_root=repo_root,
         quality_score=quality,
     )
 
@@ -626,8 +655,15 @@ def cmd_save(args: argparse.Namespace) -> int:
         "quality": quality["overall"],
         "score": quality["score"],
         "warnings": quality["warnings"],
+        "anchors": anchor_summary,
         "token_estimates": metadata["token_estimates"],
     }
+    if anchor_summary["unresolved"]:
+        result["warnings"] = list(result["warnings"]) + [
+            f"{len(anchor_summary['unresolved'])} file anchor(s) did not resolve "
+            "to an existing file -- fix the paths and re-save with --update, or "
+            "future loads cannot verify them"
+        ]
     print(json.dumps(result, indent=2))
     return 0
 

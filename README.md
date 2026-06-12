@@ -189,33 +189,38 @@ context-handoff-bundle delete <bundle-id>  # remove specific bundle
 
 This is the core differentiator. When you load a bundle, the tool doesn't just give you a summary -- it tells you how much of that summary is still safe.
 
+At save time, every file anchor (`src/auth/middleware.ts:40-62 — JWT verify`) is resolved and its referenced line range content-hashed. At load time the hash is re-checked, commit anchors are verified against git, and each anchor gets an honest status: **verified** (content identical -- trust it, don't re-read it), **ok** (file untouched since save), **changed** (re-read before relying on it), **gone** (file or commit no longer exists), or **n/a** (URLs/commands -- not file-checkable). Line-range hashing means unrelated edits elsewhere in the file don't invalidate the anchor. All pure Python + git, zero LLM calls.
+
+When something actually drifted:
+
 ```
 ## Drift
 Severity: MEDIUM -- 8 commits, 12 files touched, 2 finding(s) at risk.
+Evidence anchors: 5 verified, 1 changed, 1 gone (2 not file-checkable)
 
-Files changed (12):
-- src/auth/middleware.ts
-- src/auth/session.ts
-- tests/auth.test.ts
-...
-
-Evidence anchors affected:
-- src/auth/middleware.ts CHANGED
+Anchors needing attention:
+- src/auth/middleware.ts:40-62 — JWT verify CHANGED
 - docs/auth-spec.md GONE
 
 Findings that may be stale:
-- F2 Auth middleware uses JWT with 24h expiry -- Evidence file changed
-- F4 Session tokens stored in httpOnly cookies -- Evidence file changed
-
-Recommendations that may be unsafe:
-- Migrate to refresh token rotation -- Repo changed significantly
+- F2 Auth middleware uses JWT with 24h expiry -- Evidence anchor changed
+- F4 Session tokens stored in httpOnly cookies -- Evidence anchor gone
 ```
+
+And when the repo moved but nothing the bundle relies on was touched, the whole section collapses to two lines instead of crying wolf:
+
+```
+## Drift
+8 commit(s) and 12 file(s) touched since save; no evidence anchors affected. Evidence anchors: 7 verified
+```
+
+Findings are flagged only when their own anchors changed or disappeared; recommendations only when the majority of checkable anchors drifted. Raw commit volume is context, never a staleness verdict.
 
 **Severity levels:**
 - **NONE** -- Bundle matches current repo state
-- **LOW** -- Minor changes, findings likely still valid
-- **MEDIUM** -- Significant changes, some findings at risk
-- **HIGH** -- Major divergence, many findings may be outdated
+- **LOW** -- Repo activity, but all evidence anchors intact
+- **MEDIUM** -- Some anchored content changed; re-check the flagged findings
+- **HIGH** -- Multiple anchors gone or most findings at risk
 
 ---
 
